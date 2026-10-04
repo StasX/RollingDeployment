@@ -13,3 +13,5 @@ bash ./scripts/install_terraform.sh
 python -m venv env
 source env/bin/activate
 pip install -r requirements.txt
+
+env/bin/python main.py

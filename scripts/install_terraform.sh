@@ -4,7 +4,6 @@ set -e
 TERRAFORM_VERSION="1.14.0"
 
 if ! command -v terraform &> /dev/null; then
-    # Detect CPU architecture
     case "$(uname -m)" in
         x86_64|amd64)
             ARCH="amd64"
@@ -18,7 +17,6 @@ if ! command -v terraform &> /dev/null; then
             ;;
     esac
 
-    # Install required tools if missing
     if ! command -v curl &> /dev/null || ! command -v unzip &> /dev/null; then
         if command -v apt &> /dev/null; then
             sudo apt update
@@ -71,4 +69,3 @@ if ! command -v terraform &> /dev/null; then
 
     trap 'rm -rf "$TMP_DIR"' EXIT
 fi
-
