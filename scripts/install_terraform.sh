@@ -57,7 +57,7 @@ if ! command -v terraform &> /dev/null; then
     fi
 
     TMP_DIR=$(mktemp -d)
-    trap 'rm -rf "$TMP_DIR"' EXIT
+    trap '[[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]] && rm -rf "${TMP_DIR}"' EXIT
 
     ZIP_FILE="$TMP_DIR/terraform.zip"
 
