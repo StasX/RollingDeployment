@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$TerraformVersion = "1.14.0"
+$TerraformVersion = "1.16.5"
 
 if (-not (Get-Command terraform -ErrorAction SilentlyContinue)) {
 

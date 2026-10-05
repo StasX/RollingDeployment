@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TERRAFORM_VERSION="1.14.0"
+TERRAFORM_VERSION="1.16.5"
 
 if ! command -v terraform &> /dev/null; then
     case "$(uname -m)" in
@@ -57,6 +57,8 @@ if ! command -v terraform &> /dev/null; then
     fi
 
     TMP_DIR=$(mktemp -d)
+    trap 'rm -rf "$TMP_DIR"' EXIT
+
     ZIP_FILE="$TMP_DIR/terraform.zip"
 
     curl -fsSL \
@@ -66,6 +68,4 @@ if ! command -v terraform &> /dev/null; then
     unzip -q "$ZIP_FILE" -d "$TMP_DIR"
 
     sudo install -m 0755 "$TMP_DIR/terraform" /usr/local/bin/terraform
-
-    trap 'rm -rf "$TMP_DIR"' EXIT
 fi
