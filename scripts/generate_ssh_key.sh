@@ -13,7 +13,7 @@ if [ ! -f "${KEY_DIR}/${KEY_NAME}" ]; then
   chmod 600 ${KEY_DIR}/${KEY_NAME}
 fi
 
-if [ ! -f "./keys/${PROJECT_NAME}-key.pem" ]; then
+if [ -f "./keys/${PROJECT_NAME}-key" ]; then
   mv ./keys/${PROJECT_NAME}-key ./keys/${PROJECT_NAME}-key.pem
 fi
 

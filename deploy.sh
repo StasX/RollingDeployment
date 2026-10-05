@@ -1,4 +1,5 @@
-et -e
+#!/bin/bash
+set -e
 
 set -a
 source .env
@@ -10,7 +11,7 @@ bash ./scripts/install_python.sh
 
 bash ./scripts/install_terraform.sh
 
-python -m venv env
+python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 
