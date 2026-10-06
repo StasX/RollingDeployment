@@ -3,18 +3,22 @@ set -e
 
 KEY_DIR="./keys"
 KEY_NAME="${PROJECT_NAME}-key"
+KEY_PATH="${KEY_DIR}/${KEY_NAME}"
+PEM_PATH="${KEY_PATH}.pem"
+PUB_PATH="${KEY_PATH}.pub"
 
-mkdir -p ${KEY_DIR}
+mkdir -p "$KEY_DIR"
 
-if [ ! -f "${KEY_DIR}/${KEY_NAME}" ]; then
-  ssh-keygen -t rsa -b 4096 \
-    -f ${KEY_DIR}/${KEY_NAME} \
-    -N ""
-  chmod 600 ${KEY_DIR}/${KEY_NAME}
+if [ ! -f "$KEY_PATH" ] && [ ! -f "$PEM_PATH" ]; then
+    ssh-keygen -t rsa -b 4096 \
+        -f "$KEY_PATH" \
+        -N ""
 fi
 
-if [ -f "./keys/${PROJECT_NAME}-key" ]; then
-  mv ./keys/${PROJECT_NAME}-key ./keys/${PROJECT_NAME}-key.pem
+if [ -f "$KEY_PATH" ] && [ ! -f "$PEM_PATH" ]; then
+    mv "$KEY_PATH" "$PEM_PATH"
 fi
 
-echo "SSH key pair generated at ${KEY_DIR}/${KEY_NAME}.pem and ${KEY_DIR}/${KEY_NAME}.pub"
+chmod 600 "$PEM_PATH"
+
+echo "SSH key pair available at $PEM_PATH and $PUB_PATH"
