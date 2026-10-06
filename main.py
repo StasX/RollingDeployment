@@ -2,11 +2,14 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 import subprocess
+from pathlib import Path
 
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 REGION = os.getenv("REGION", "us-east-1")
 PROJECT_NAME = os.getenv("PROJECT_NAME")
+BASE_DIR = Path(__file__).resolve().parent
+INFRA_DIR = BASE_DIR / "infra"
 
 
 def main():
@@ -48,7 +51,7 @@ def main():
 
     subprocess.run([
         "terraform",
-        "-chdir=./infra",
+        f"-chdir={INFRA_DIR}",
         "init",
         f"-backend-config=bucket={PROJECT_NAME}",
         f"-backend-config=key=env/terraform.tfstate",
@@ -58,14 +61,14 @@ def main():
         check=True)
     subprocess.run([
         "terraform",
-        "-chdir=./infra",
+        f"-chdir={INFRA_DIR}",
         "plan",
         "-out=tfplan"
     ],
         check=True)
     subprocess.run([
         "terraform",
-        "-chdir=./infra",
+        f"-chdir={INFRA_DIR}",
         "apply",
         "tfplan"
     ],
