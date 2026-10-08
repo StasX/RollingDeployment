@@ -27,6 +27,10 @@ if [ -n "$DOMAIN_NAME" ]; then
   export TF_VAR_DOMAIN_NAME="$DOMAIN_NAME"
 fi
 
+if [ -n "$ADMIN_ALLOWED_CIDR" ]; then
+  export TF_VAR_ADMIN_ALLOWED_CIDR="$ADMIN_ALLOWED_CIDR"
+fi
+
 bash ./scripts/generate_ssh_key.sh
 
 bash ./scripts/install_python.sh

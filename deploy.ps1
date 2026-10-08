@@ -32,6 +32,10 @@ if ($env:DOMAIN_NAME) {
     $env:TF_VAR_DOMAIN_NAME = $env:DOMAIN_NAME
 }
 
+if ($env:ADMIN_ALLOWED_CIDR) {
+    $env:TF_VAR_ADMIN_ALLOWED_CIDR = $env:ADMIN_ALLOWED_CIDR
+}
+
 & python -m venv $venv
 & "$venv\Scripts\python.exe" -m pip install `
     -r "$PSScriptRoot\requirements.txt"
