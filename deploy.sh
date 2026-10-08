@@ -1,9 +1,31 @@
 #!/bin/bash
 set -e
 
-set -a
-source .env
-set +a
+if [ -f .env ]; then
+  set -a
+  source .env
+  set +a
+fi
+
+if [ -n "$PROJECT_NAME" ]; then
+  export TF_VAR_PROJECT_NAME="$PROJECT_NAME"
+fi
+
+if [ -n "$MOST_RECENT" ]; then
+  export TF_VAR_MOST_RECENT="$MOST_RECENT"
+fi
+
+if [ -n "$AMI_ID" ]; then
+  export TF_VAR_AMI_ID="$AMI_ID"
+fi
+
+if [ -n "$USE_DOMAIN" ]; then
+  export TF_VAR_USE_DOMAIN="$USE_DOMAIN"
+fi
+
+if [ -n "$DOMAIN_NAME" ]; then
+  export TF_VAR_DOMAIN_NAME="$DOMAIN_NAME"
+fi
 
 bash ./scripts/generate_ssh_key.sh
 
