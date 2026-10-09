@@ -45,6 +45,10 @@ resource "aws_instance" "app" {
     http_put_response_hop_limit = 2
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name = "${var.PROJECT_NAME}-${each.key}"
     Role = "application"
@@ -75,6 +79,10 @@ resource "aws_instance" "monitoring" {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 
   tags = {

@@ -7,6 +7,10 @@ resource "aws_s3_bucket" "uploads" {
 
   force_destroy = false
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name    = "${var.PROJECT_NAME}-uploads"
     Purpose = "${var.PROJECT_NAME}-images-storage"

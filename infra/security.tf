@@ -28,6 +28,10 @@ resource "aws_security_group" "alb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name = "${var.PROJECT_NAME}-alb-sg"
   }
@@ -64,6 +68,10 @@ resource "aws_security_group" "app_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name = "${var.PROJECT_NAME}-app-sg"
   }
@@ -92,6 +100,10 @@ resource "aws_security_group" "monitoring_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name = "${var.PROJECT_NAME}-monitoring-sg"
   }
@@ -108,6 +120,10 @@ resource "aws_security_group" "ssh_sg" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = [var.ADMIN_ALLOWED_CIDR]
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 
   tags = {
@@ -150,6 +166,10 @@ resource "aws_security_group" "galera_sg" {
     to_port     = 4444
     protocol    = "tcp"
     self        = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 
   tags = {

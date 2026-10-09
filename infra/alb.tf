@@ -11,7 +11,11 @@ resource "aws_lb" "app_alb" {
     for subnet in aws_subnet.public_sn : subnet.id
   ]
 
-  enable_deletion_protection = false
+  enable_deletion_protection = true
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = {
     Name = "${var.PROJECT_NAME}-alb"
@@ -35,6 +39,10 @@ resource "aws_lb_target_group" "app_tg" {
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 
   tags = {
