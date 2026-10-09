@@ -82,3 +82,13 @@ resource "aws_instance" "monitoring" {
     Role = "monitoring"
   }
 }
+
+resource "aws_volume_attachment" "database" {
+  for_each = local.app_instances
+
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.database[each.key].id
+  instance_id = aws_instance.app[each.key].id
+
+  stop_instance_before_detaching = true
+}
