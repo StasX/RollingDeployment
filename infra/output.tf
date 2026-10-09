@@ -41,7 +41,7 @@ output "app_url" {
 
   value = var.USE_DOMAIN ? (
     "http://${aws_route53_record.app[0].fqdn}"
-  ) : (
+    ) : (
     "http://${aws_lb.app_alb.dns_name}"
   )
 }
