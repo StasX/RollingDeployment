@@ -37,6 +37,8 @@ bash ./scripts/install_python.sh
 
 bash ./scripts/install_terraform.sh
 
+bash ./scripts/install_ansible.sh
+
 python3 -m venv env
 source env/bin/activate
 pip install -r requirements.txt

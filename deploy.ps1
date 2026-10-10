@@ -11,6 +11,7 @@ Get-Content "$PSScriptRoot\.env" | Where-Object { $_ -and -not $_.StartsWith('#'
 & "$scripts\generate_ssh_key.ps1"
 & "$scripts\install_python.ps1"
 & "$scripts\install_terraform.ps1"
+& "$scripts\install_ansible.ps1"
 
 if ($env:PROJECT_NAME) {
     $env:TF_VAR_PROJECT_NAME = $env:PROJECT_NAME
