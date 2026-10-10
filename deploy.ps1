@@ -39,4 +39,4 @@ if ($env:ADMIN_ALLOWED_CIDR) {
 & python -m venv $venv
 & "$venv\Scripts\python.exe" -m pip install `
     -r "$PSScriptRoot\requirements.txt"
-& "$venv\Scripts\python.exe" "$PSScriptRoot\main.py"
+& "$venv\Scripts\python.exe" "$PSScriptRoot\main.py --apply"
