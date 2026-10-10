@@ -13,8 +13,8 @@ override.tf.json
 .terraform.tfstate.lock.info
 !example_override.tf
 *.dot
-**/tfplan
-**/tfplan.*
+tfplan
+tfplan.*
 
 # keys/
 *.pem
