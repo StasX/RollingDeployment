@@ -1,0 +1,14 @@
+# Monitoring repository
+monitoring_repo_url: "https://github.com/StasX/Monitoring.git"
+monitoring_repo_version: "main"
+monitoring_base_dir: "/opt/monitoring"
+
+# Docker Compose
+monitoring_compose_file: "docker-compose.yml"
+monitoring_compose_project: "monitoring"
+
+# Deployment
+monitoring_pull_images: true
+monitoring_remove_orphans: true
+
+monitoring_node_exporter_targets: []

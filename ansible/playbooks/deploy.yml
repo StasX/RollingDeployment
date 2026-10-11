@@ -1,0 +1,12 @@
+- name: Rolling deployment of application
+  hosts: all
+  become: true
+  gather_facts: true
+
+  serial: "{{ app_deploy_serial | default(1) }}"
+  max_fail_percentage: 0
+
+  tasks:
+    - name: Deploy application
+      ansible.builtin.include_role:
+        name: app

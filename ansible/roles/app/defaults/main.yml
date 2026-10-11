@@ -1,0 +1,22 @@
+# Application repository
+app_repo_url: "https://github.com/StasX/TheSchool.git"
+app_repo_version: "main"
+app_base_dir: "/opt/app"
+
+# Docker Compose
+app_compose_file: "docker-compose.yml"
+app_compose_project: "{{ project_name | lower }}"
+
+# Deployment
+app_pull_images: true
+app_remove_orphans: true
+
+# Application health check
+app_health_url: "http://127.0.0.1/api/health"
+app_health_status_code: 200
+app_health_retries: 10
+app_health_delay: 5
+
+# Rolling deployment
+app_deploy_serial: 1
+app_deploy_max_fail_percentage: 0

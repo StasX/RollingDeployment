@@ -1,0 +1,16 @@
+- name: Clone monitoring repository
+  ansible.builtin.git:
+    repo: "{{ monitoring_repo_url }}"
+    dest: "{{ monitoring_base_dir }}"
+    version: "{{ monitoring_repo_version }}"
+    update: true
+
+- name: Start monitoring containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_base_dir }}"
+    files:
+      - "{{ monitoring_compose_file }}"
+    project_name: "{{ monitoring_compose_project }}"
+    pull: "{{ 'always' if monitoring_pull_images else 'missing' }}"
+    remove_orphans: "{{ monitoring_remove_orphans }}"
+    state: present

@@ -1,0 +1,7 @@
+- name: Prepare EC2 instances
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - docker

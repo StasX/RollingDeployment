@@ -1,0 +1,57 @@
+- name: Install Git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clone application repository
+  ansible.builtin.git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_base_dir }}"
+    version: "{{ app_repo_version }}"
+    update: true
+
+- name: Configure application environment
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ app_base_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart application
+  no_log: true
+
+- name: Deploy application containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_base_dir }}"
+    files:
+      - "{{ app_compose_file }}"
+    project_name: "{{ app_compose_project }}"
+    state: present
+    pull: "{{ 'always' if app_pull_images else 'missing' }}"
+    remove_orphans: "{{ app_remove_orphans }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Apply pending application handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify application health
+  ansible.builtin.uri:
+    url: "{{ app_health_url }}"
+    method: GET
+    status_code: "{{ app_health_status_code }}"
+    return_content: false
+  register: app_health_result
+  retries: "{{ app_health_retries }}"
+  delay: "{{ app_health_delay }}"
+  until: app_health_result.status == app_health_status_code
+  changed_when: false
