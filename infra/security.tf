@@ -37,7 +37,6 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-
 # Application Security Group
 resource "aws_security_group" "app_sg" {
   name        = "${var.PROJECT_NAME}-app-sg"
@@ -74,6 +73,78 @@ resource "aws_security_group" "app_sg" {
 
   tags = {
     Name = "${var.PROJECT_NAME}-app-sg"
+  }
+}
+
+
+# Database Security Group
+resource "aws_security_group" "galera_sg" {
+  name        = "${var.PROJECT_NAME}-galera-sg"
+  description = "MariaDB Galera cluster communication"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "Galera replication TCP"
+    from_port   = 4567
+    to_port     = 4567
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Galera replication UDP"
+    from_port   = 4567
+    to_port     = 4567
+    protocol    = "udp"
+    self        = true
+  }
+
+  ingress {
+    description = "Galera incremental state transfer"
+    from_port   = 4568
+    to_port     = 4568
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Galera state snapshot transfer"
+    from_port   = 4444
+    to_port     = 4444
+    protocol    = "tcp"
+    self        = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = "${var.PROJECT_NAME}-galera-sg"
+  }
+
+  ingress {
+    description     = "MariaDB from application servers"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id]
+  }
+
+  ingress {
+    description     = "Node Exporter from monitoring"
+    from_port       = 9100
+    to_port         = 9100
+    protocol        = "tcp"
+    security_groups = [aws_security_group.monitoring_sg.id]
+  }
+
+  egress {
+    description = "Allow outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -128,51 +199,5 @@ resource "aws_security_group" "ssh_sg" {
 
   tags = {
     Name = "${var.PROJECT_NAME}-ssh-sg"
-  }
-}
-
-resource "aws_security_group" "galera_sg" {
-  name        = "${var.PROJECT_NAME}-galera-sg"
-  description = "MariaDB Galera cluster communication"
-  vpc_id      = aws_vpc.vpc.id
-
-  ingress {
-    description = "Galera replication TCP"
-    from_port   = 4567
-    to_port     = 4567
-    protocol    = "tcp"
-    self        = true
-  }
-
-  ingress {
-    description = "Galera replication UDP"
-    from_port   = 4567
-    to_port     = 4567
-    protocol    = "udp"
-    self        = true
-  }
-
-  ingress {
-    description = "Galera incremental state transfer"
-    from_port   = 4568
-    to_port     = 4568
-    protocol    = "tcp"
-    self        = true
-  }
-
-  ingress {
-    description = "Galera state snapshot transfer"
-    from_port   = 4444
-    to_port     = 4444
-    protocol    = "tcp"
-    self        = true
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-
-  tags = {
-    Name = "${var.PROJECT_NAME}-galera-sg"
   }
 }

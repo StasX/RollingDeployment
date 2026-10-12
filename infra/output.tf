@@ -55,3 +55,21 @@ output "custom_domain" {
   description = "Custom application domain, if enabled"
   value       = var.USE_DOMAIN ? aws_route53_record.app[0].fqdn : null
 }
+
+output "database_public_ips" {
+  description = "Public IP addresses of database instances"
+
+  value = {
+    for name, instance in aws_instance.database :
+    name => instance.public_ip
+  }
+}
+
+output "database_private_ips" {
+  description = "Private IP addresses of database instances"
+
+  value = {
+    for name, instance in aws_instance.database :
+    name => instance.private_ip
+  }
+}

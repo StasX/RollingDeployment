@@ -76,7 +76,7 @@ resource "aws_route_table_association" "public_rt_assoc" {
 resource "aws_subnet" "monitoring_sn" {
   vpc_id                  = aws_vpc.vpc.id
   cidr_block              = cidrsubnet(aws_vpc.vpc.cidr_block, 8, 10)
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
 
   lifecycle {

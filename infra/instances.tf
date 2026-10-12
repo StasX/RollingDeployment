@@ -2,8 +2,13 @@ locals {
   app_instances = {
     app-1 = 0
     app-2 = 0
-    app-3 = 1
-    app-4 = 1
+    app-3 = 0
+  }
+
+  database_instances = {
+    db-1 = 0
+    db-2 = 0
+    db-3 = 0
   }
 }
 
@@ -29,8 +34,7 @@ resource "aws_instance" "app" {
 
   vpc_security_group_ids = [
     aws_security_group.app_sg.id,
-    aws_security_group.ssh_sg.id,
-    aws_security_group.galera_sg.id
+    aws_security_group.ssh_sg.id
   ]
 
   root_block_device {
@@ -52,6 +56,44 @@ resource "aws_instance" "app" {
   tags = {
     Name = "${var.PROJECT_NAME}-${each.key}"
     Role = "application"
+  }
+}
+
+resource "aws_instance" "database" {
+  for_each = local.database_instances
+
+  ami                         = var.AMI_ID != "" ? var.AMI_ID : data.aws_ami.ami.id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public_sn[each.value].id
+  associate_public_ip_address = true
+
+  key_name             = aws_key_pair.ec2_key.key_name
+  iam_instance_profile = aws_iam_instance_profile.database_profile.name
+
+  vpc_security_group_ids = [
+    aws_security_group.galera_sg.id,
+    aws_security_group.ssh_sg.id
+  ]
+
+  root_block_device {
+    volume_size = 40
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = "${var.PROJECT_NAME}-${each.key}"
+    Role = "database"
   }
 }
 
@@ -92,11 +134,11 @@ resource "aws_instance" "monitoring" {
 }
 
 resource "aws_volume_attachment" "database" {
-  for_each = local.app_instances
+  for_each = local.database_instances
 
   device_name = "/dev/sdf"
   volume_id   = aws_ebs_volume.database[each.key].id
-  instance_id = aws_instance.app[each.key].id
+  instance_id = aws_instance.database[each.key].id
 
   stop_instance_before_detaching = true
 }
