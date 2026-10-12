@@ -1,93 +1,90 @@
 # RollingDeployment
 
-**AWS infrastructure provisioning and deployment automation for Dockerized applications.**
+AWS infrastructure and deployment automation for [TheSchool](https://github.com/StasX/TheSchool), with a separate MariaDB Galera database tier and a [Monitoring](https://github.com/StasX/Monitoring) stack.
 
-RollingDeployment is a work-in-progress DevOps project that combines **Terraform**, **Python (Boto3)**, **Ansible**, and cross-platform setup scripts to prepare AWS infrastructure for rolling application deployments.
+The project combines Terraform, Python (Boto3), Ansible, and Docker Compose to provision infrastructure, configure hosts, and deploy application releases incrementally.
 
-> **Project status:** Infrastructure provisioning and bootstrap automation are under development. Docker installation across EC2 instances, rolling updates, health-gated releases, and automated rollback are project goals; do not assume they are fully operational without testing.
+> **Status:** Work in progress. The revised infrastructure design uses seven EC2 instances. Ansible roles exist for Docker, application deployment, and monitoring. Python orchestration of Ansible, Galera configuration, and end-to-end deployment verification are the next steps. Automated rollback is planned.
 
-## Goals
+## Architecture
 
-- Provision repeatable AWS infrastructure across multiple Availability Zones.
-- Keep application servers in private subnets behind an Application Load Balancer.
-- Configure EC2 hosts consistently, including Docker Engine and the Compose plugin.
-- Deploy application versions gradually while preserving service availability.
-- Validate instance health and recover safely from failed releases.
-- Monitor application and infrastructure health with Prometheus and Grafana.
+One VPC spans two Availability Zones. Application and database instances reside in AZ A; monitoring resides in AZ B. The public Application Load Balancer uses subnets in both AZs.
 
-## Architecture (target design)
+| Location | Component | Count | Purpose |
+| --- | --- | ---: | --- |
+| AZ A | Application EC2 | 3 | Run TheSchool behind the ALB |
+| AZ A | Database EC2 | 3 | Run a MariaDB Galera cluster |
+| AZ B | Monitoring EC2 | 1 | Run Prometheus and Grafana |
+| AZ A + AZ B | Application Load Balancer | 1 | Route HTTP requests to application instances |
 
 ```mermaid
 flowchart TD
-    Operator[Operator / CI pipeline] --> Bootstrap[Python bootstrap + Terraform]
-    Bootstrap --> State[(S3 Terraform state)]
-    Bootstrap --> VPC[AWS VPC across two AZs]
-    Internet[Clients] --> ALB[Public Application Load Balancer]
-    VPC --> ALB
-    ALB --> A1[Private EC2 app 1 - AZ A]
-    ALB --> A2[Private EC2 app 2 - AZ A]
-    ALB --> B1[Private EC2 app 3 - AZ B]
-    ALB --> B2[Private EC2 app 4 - AZ B]
-    Ansible[Ansible host configuration] -.-> A1
-    Ansible -.-> A2
-    Ansible -.-> B1
-    Ansible -.-> B2
-    VPC --> Monitoring[Monitoring EC2: Prometheus + Grafana]
+    Clients[Clients] --> ALB[Public ALB]
+    subgraph A[AZ A]
+        Apps[Three application instances] --> DB[Three Galera database nodes]
+    end
+    subgraph B[AZ B]
+        Monitor[Prometheus and Grafana]
+    end
+    ALB --> Apps
+    Monitor -. Scrape metrics .-> Apps
+    Monitor -. Scrape metrics .-> DB
+    Apps --> Uploads[S3 uploads]
+    DB --> Backups[S3 database backups]
 ```
 
-This diagram represents the **intended architecture**, not a claim that every component has been provisioned and verified end to end. The intended deployment uses four application EC2 instances and a separate monitoring instance. Prometheus and internal metrics should remain private; any externally accessible Grafana endpoint must be protected.
+### Availability tradeoff
+
+The three-node Galera cluster is designed to retain quorum after one database-node failure, provided the other two nodes remain connected. Application releases run one instance at a time; preserving service requires enough healthy capacity on the remaining instances.
+
+All application and database nodes share AZ A. An AZ A outage therefore stops the application and database. Monitoring in AZ B can remain running and detect the loss of its targets. This architecture prioritizes local database communication and instance-level resilience; it does not provide application availability through an AZ A outage.
+
+An asynchronous MariaDB replica in AZ B is a possible future disaster-recovery extension. It is not part of the initial seven-instance layout.
+
+### Networking and storage
+
+- EC2 instances currently use public subnets and public IPs for controlled SSH access and outbound downloads.
+- Application HTTP traffic is allowed from the ALB security group only.
+- MariaDB connections use private IPs and port `3306`, allowed from the application security group.
+- Galera traffic on `4567/TCP`, `4567/UDP`, `4568/TCP`, and `4444/TCP` is restricted to members of the database security group.
+- Node Exporter port `9100` on application and database hosts is allowed from the monitoring security group.
+- SSH and Grafana access are restricted by `ADMIN_ALLOWED_CIDR`.
+- Each database node has a separate encrypted 100 GiB `gp3` data volume. Formatting, mounting, and database storage configuration belong to host provisioning.
+- EC2 root volumes are encrypted, and instance metadata requires IMDSv2.
+- The current ALB listener serves HTTP. Opening port `443` in its security group does not configure HTTPS; a certificate and HTTPS listener are still required.
 
 ## Technology stack
 
-| Area | Technology | Purpose |
+| Area | Technology | Responsibility |
 | --- | --- | --- |
-| Infrastructure | Terraform, AWS | Provision network, compute, and load balancing |
-| Bootstrap | Python, Boto3 | Prepare the remote Terraform state backend and run Terraform |
-| State | Amazon S3 | Versioned Terraform state with native S3 locking |
-| Host configuration | Ansible | Consistent EC2 configuration and Docker installation (in progress) |
-| Containers | Docker, Docker Compose | Run containerized applications (target workflow) |
-| Monitoring | Prometheus, Grafana | Metrics and dashboards (planned integration) |
-| Entrypoints | Bash, PowerShell | Cross-platform local setup |
+| Infrastructure | Terraform, AWS | VPC, subnets, EC2, ALB, EBS, IAM, S3, optional Route 53 |
+| Orchestration | Python, Boto3 | Prepare Terraform state storage and run Terraform; Ansible integration planned |
+| Host configuration | Ansible | Docker installation, application deployment, and monitoring deployment |
+| Runtime | Docker Engine, Docker Compose | Run application and monitoring containers |
+| Database | MariaDB Galera | Three-node database tier; provisioning planned |
+| Observability | Prometheus, Grafana, Node Exporter | Host metrics and dashboards |
+| Local setup | Bash, PowerShell, WSL | Prepare tooling and invoke the bootstrap |
 
 ## Repository layout
 
-```text
-RollingDeployment/
-├── ansible/          # Host configuration and automation
-├── config/           # Python bootstrap helpers
-├── infra/            # Terraform infrastructure
-├── keys/             # Locally generated SSH key material (keep private keys out of Git)
-├── scripts/          # Linux and Windows setup scripts
-├── deploy.sh         # Linux bootstrap entrypoint
-├── deploy.ps1        # Windows bootstrap entrypoint
-├── main.py           # S3 backend setup and Terraform init/plan/apply
-├── example.env       # Configuration template
-└── requirements.txt  # Python dependencies
-```
+| Path | Purpose |
+| --- | --- |
+| `infra/` | Terraform resource definitions and outputs |
+| `config/` | Python bootstrap helpers |
+| `ansible/ansible.cfg` | Ansible connection and role configuration |
+| `ansible/playbooks/` | Setup, application, and monitoring playbooks |
+| `ansible/roles/docker/` | Docker Engine and Compose installation |
+| `ansible/roles/app/` | TheSchool checkout, environment, Compose deployment, and health checks |
+| `ansible/roles/monitoring/` | Monitoring repository checkout and Compose deployment |
+| `scripts/` | Tool installation and SSH key generation |
+| `keys/` | Locally generated SSH keys; private keys must stay out of Git |
+| `main.py` | S3 state bootstrap and Terraform init, plan, and optional apply |
+| `deploy.sh`, `deploy.ps1` | Local setup entrypoints |
+| `example.env` | Environment configuration template |
 
-## Prerequisites
+## Configuration
 
-- An AWS account with permissions to create and manage the resources defined in `infra/`.
-- AWS credentials available through the standard AWS SDK credential chain (for example, a configured AWS profile or environment variables).
-- Git and a compatible shell: Bash on Linux, or PowerShell on Windows.
-- Python and Terraform, or the ability to install them using the included setup scripts.
-- Network access to AWS APIs and package repositories.
-- Awareness that provisioning AWS resources **can incur charges**.
-
-For security, prefer short-lived credentials or an assumed IAM role over long-lived access keys. Do not commit `.env`, private SSH keys, Terraform state, or saved Terraform plans.
-
-## Quick start
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/StasX/RollingDeployment.git
-cd RollingDeployment
-```
-
-### 2. Configure the environment
-
-Linux/macOS-style shell:
+Copy the template and edit it before running the bootstrap:
 
 ```bash
 cp example.env .env
@@ -99,126 +96,141 @@ PowerShell:
 Copy-Item example.env .env
 ```
 
-Edit `.env` for your environment. The current template contains:
-
-| Variable | Example | Description |
+| Variable | Example | Purpose |
 | --- | --- | --- |
-| `PROJECT_NAME` | `TheSchool` | Project identifier; currently also used as the Terraform state S3 bucket name |
-| `REGION` | `us-east-1` | AWS region |
-| `MOST_RECENT` | `true` | Terraform AMI-selection input |
-| `AMI_ID` | *(empty)* | Optional AMI input; verify the corresponding Terraform logic |
-| `USE_DOMAIN` | `false` | Domain-related Terraform input |
-| `DOMAIN_NAME` | *(empty)* | Domain name if domain integration is enabled |
-| `ADMIN_ALLOWED_CIDR` | `0.0.0.0` | Admin network input; **replace with an explicitly approved, restrictive CIDR and verify Terraform validation before applying** |
+| `PROJECT_NAME` | `theschool-your-unique-suffix` | Resource identifier and current Terraform state bucket name; choose a globally unique, lowercase S3-compatible value |
+| `REGION` | `us-east-1` | Region used by Boto3 and the Terraform backend |
+| `AWS_DEFAULT_REGION` | `us-east-1` | AWS provider region; keep aligned with `REGION` |
+| `MOST_RECENT` | `true` | Select the newest matching Ubuntu AMI |
+| `AMI_ID` | empty | Optional explicit AMI ID |
+| `USE_DOMAIN` | `false` | Enable the Route 53 application record |
+| `DOMAIN_NAME` | empty | Existing public hosted-zone domain, required when `USE_DOMAIN=true` |
+| `ADMIN_ALLOWED_CIDR` | `203.0.113.10/32` | Replace this documentation address with your actual administrator public IPv4 CIDR |
 
-**Important:** S3 bucket names are globally unique. Choose a valid, unique `PROJECT_NAME` compatible with S3 bucket naming rules, or update the backend naming strategy before running the bootstrap. Review all variables in `infra/` before applying, especially any networking or administrative access settings.
+AWS credentials must be available to Boto3 and Terraform through environment variables or the standard credential chain. The current AWS provider configuration does not consume the custom `REGION` variable directly, so set `AWS_DEFAULT_REGION` or configure the same region in your AWS profile.
 
-### 3. Run the setup script
+Terraform rejects `ADMIN_ALLOWED_CIDR=0.0.0.0/0`; `0.0.0.0` without a prefix is also invalid. Use an appropriate restrictive CIDR.
 
-Linux:
+Ansible will additionally need application secrets and runtime settings, including the application key, database credentials, Redis connection details, application URL, and uploads bucket name. Terraform outputs alone do not supply all of these values.
+
+## Local setup and execution
+
+Requirements:
+
+- An AWS account and credentials permitted to manage the defined resources.
+- A region with at least two available AZs.
+- Git and Bash on Linux, or PowerShell with a configured WSL Linux distribution on Windows.
+- Access to AWS APIs, package repositories, and application repositories.
+
+Run from the repository root:
 
 ```bash
 bash ./deploy.sh
 ```
 
-Windows PowerShell:
+PowerShell entrypoint:
 
 ```powershell
 .\deploy.ps1
 ```
 
-These scripts load `.env`, export Terraform input variables, prepare local tooling and SSH key material, install Python dependencies in a virtual environment, and invoke `main.py`.
+The setup scripts load `.env`, export Terraform inputs, generate SSH keys, prepare local tools, and install Python dependencies in a virtual environment. Ansible runs on Linux; the Windows installation script uses WSL.
 
-**The scripts currently invoke `main.py` without `--apply`, so they perform a Terraform plan rather than applying infrastructure changes.**
-
-### 4. Review and apply infrastructure changes
-
-After reviewing the plan, use the Python entrypoint with `--apply`:
-
-Linux:
-
-```bash
-./env/bin/python main.py --apply
-```
-
-Windows PowerShell:
+**The Bash entrypoint currently invokes `main.py --apply`, which provisions infrastructure.** The PowerShell invocation must pass the script path and `--apply` as separate arguments:
 
 ```powershell
-.\env\Scripts\python.exe .\main.py --apply
+& "$venv\Scripts\python.exe" "$PSScriptRoot\main.py" --apply
 ```
 
-Ensure the environment variables from `.env` are loaded into the current shell before invoking `main.py` directly; running the earlier setup script does not necessarily preserve exported variables in the parent shell. The `--apply` option creates a new saved plan and applies it; it does **not** merely apply a previously reviewed plan from an earlier run.
+For direct Python execution, after preparing the virtual environment and loading environment variables:
 
-## Terraform backend
+```bash
+./env/bin/python main.py          # Create a Terraform plan
+./env/bin/python main.py --apply  # Create and apply a new plan
+```
 
-The Python bootstrap currently:
+Without `--apply`, infrastructure resources are only planned, but the Python bootstrap can still create or update the S3 state bucket. With `--apply`, Python creates a new plan and applies it; it does not reuse a plan reviewed during a previous invocation.
 
-1. Checks for an S3 bucket named by `PROJECT_NAME` and creates it if missing.
-2. Configures or checks S3 public-access blocking and bucket versioning.
-3. Initializes Terraform using the S3 backend.
-4. Uses `env/terraform.tfstate` as the backend state key and `use_lockfile=true` for state locking.
-5. Runs `terraform plan -out=tfplan`.
-6. Runs `terraform apply tfplan` **only** when `--apply` is passed.
+## Terraform state and host discovery
 
-Terraform state and plan files can contain sensitive information. Keep access tightly scoped and verify bucket encryption, IAM permissions, state recovery procedures, and `.gitignore` rules before production use.
+Python prepares an S3 bucket named by `PROJECT_NAME`, enables or checks public-access blocking and versioning, and initializes Terraform with:
 
-## EC2 configuration and Docker
+- State key: `env/terraform.tfstate`
+- Native S3 locking: `use_lockfile=true`
+- Saved local plan: `infra/tfplan`
 
-The intended next stage is to use Ansible to install and configure Docker Engine and the Docker Compose plugin on all application instances. The monitoring instance may also use Docker to run Prometheus and Grafana.
+Host information is exposed through these Terraform outputs:
 
-A complete host-configuration workflow should:
+| Output | Use |
+| --- | --- |
+| `app_public_ips` | SSH access to application hosts |
+| `app_private_ips` | Internal application addresses and monitoring targets |
+| `database_public_ips` | SSH access to database hosts |
+| `database_private_ips` | Galera membership, database connections, and monitoring targets |
+| `monitoring_public_ip` | SSH access and administrator Grafana access |
+| `monitoring_private_ip` | Internal monitoring address |
+| `app_url` | ALB or custom-domain application URL |
 
-- Discover or inventory all intended EC2 hosts.
-- Access private hosts securely, using a controlled SSH route or AWS Systems Manager.
-- Install Docker packages from trusted repositories.
-- Enable and start the Docker service.
-- Verify Docker and Compose versions and service health.
-- Remain idempotent when executed multiple times.
+The planned Python integration reads `terraform output -json` after a successful apply. Outputs include existing managed hosts even when no infrastructure changes occur. They are state values; Python must still wait for SSH readiness before invoking Ansible.
 
-**Status:** An `ansible/` directory exists, but the complete installation workflow and its successful execution across every EC2 instance have not been verified here.
+## Ansible workflow
 
-## Rolling deployment (planned)
+Python will supply host lists, the SSH key path, and runtime variables through Ansible CLI arguments. A committed static inventory directory is unnecessary. A generated inventory can provide host groups and per-host variables as the workflow grows.
 
-The release workflow is intended to:
+The intended sequence is:
 
-1. Build and publish a versioned application image.
-2. Select one healthy application instance at a time.
-3. Temporarily remove or drain that instance from serving requests.
-4. Pull and start the new application version.
-5. Wait for application health checks and target-group readiness.
-6. Return the updated instance to service.
-7. Continue to the next instance only after successful validation.
-8. Stop and roll back according to a defined policy if validation fails.
+1. Apply Terraform and read outputs.
+2. Wait for all seven hosts to become reachable.
+3. Run `setup.yml` against all seven hosts to install Docker and Compose.
+4. Configure and bootstrap the Galera database tier using a database role/playbook to be added.
+5. Run `monitoring.yml` against the monitoring host and configure private metric targets.
+6. Run `deploy.yml` against the three application hosts.
 
-A **zero-downtime** claim requires real load testing, readiness checks, connection-draining behavior, and failure testing; it is not guaranteed by the rolling sequence alone.
+The current playbooks use `hosts: all`, so Python must pass the appropriate host list to each invocation. Inline inventory lists require a trailing comma. Run from `ansible/`, or explicitly select `ansible/ansible.cfg`, so its role and SSH settings are loaded.
 
-## Security considerations
+## Application releases
 
-- Restrict administrative access to approved sources; never expose SSH or management endpoints broadly.
-- Keep application EC2 instances in private subnets and restrict inbound traffic to required security-group sources.
-- Keep Prometheus and internal metrics private; secure Grafana with authentication and TLS if exposed.
-- Use least-privilege IAM policies and short-lived AWS credentials.
-- Keep private keys, `.env`, Terraform state, and Terraform plans out of source control.
-- Ensure private instances have a deliberate package/image retrieval path (for example, NAT or suitable private endpoints).
-- Avoid granting users access to the Docker socket unless necessary; it provides powerful host-level privileges.
+The application role checks out TheSchool, renders its environment file, starts Docker Compose services, and checks `/api/health`. The deployment playbook processes one application host at a time and stops subsequent batches on failure.
 
-## Roadmap
+The remaining release work includes immutable release selection, ALB deregistration and connection draining, target-health verification before proceeding, and tested rollback to the previous release. Local health checks alone do not establish zero-downtime deployment.
 
-- [x] Cross-platform Bash and PowerShell setup entrypoints
-- [x] Python bootstrap for S3-backed Terraform state
-- [x] Terraform initialization, plan, and optional apply
-- [ ] Verify end-to-end AWS infrastructure provisioning across two AZs
-- [ ] Verify Docker Engine and Compose installation on every intended EC2 instance
-- [ ] Complete automated Ansible inventory and host readiness checks
-- [ ] Deploy a sample containerized application behind the ALB
-- [ ] Implement health-gated rolling deployments
-- [ ] Implement and test automatic rollback
-- [ ] Integrate Prometheus and Grafana monitoring
-- [ ] Add CI validation, infrastructure checks, and failure-scenario tests
-- [ ] Publish a reproducible deployment demonstration
+Database schema changes need a separate migration strategy compatible with both old and new application versions. Redis-backed sessions and queues also need a deliberate shared topology across application hosts.
 
-The unchecked items are not necessarily absent from the codebase; they indicate functionality that still needs end-to-end verification before it can be advertised as complete.
+## IAM and backups
+
+| Host role | Permissions |
+| --- | --- |
+| Application | SSM and access to the uploads bucket |
+| Database | SSM and backup uploads to the database backups bucket |
+| Monitoring | SSM |
+
+Creating the backups bucket and granting `s3:PutObject` does not create a backup process. Scheduling backups, recording their success, and testing restoration remain necessary. Downloading backups for restoration requires additional read permissions.
+
+## Implementation checklist
+
+- [x] Python S3 backend bootstrap and Terraform plan/apply flow
+- [x] Terraform definitions for the revised seven-instance architecture
+- [x] Separate application, database, and monitoring IAM permissions
+- [x] Ansible roles for Docker, application, and monitoring
+- [x] Sequential application deployment and local health checks
+- [ ] Verify the revised infrastructure end to end
+- [ ] Fix remaining bootstrap/role integration issues and verify Windows execution through WSL
+- [ ] Connect Python host discovery to Ansible execution and readiness checks
+- [ ] Configure database data volumes and bootstrap Galera safely
+- [ ] Deploy Node Exporter and render Prometheus targets
+- [ ] Verify application, database, Redis, and ALB connectivity
+- [ ] Implement scheduled backups and test restoration
+- [ ] Add ALB draining, target-health checks, and automated rollback
+- [ ] Configure HTTPS and demonstrate deployment under load
+
+Checked items describe code or configuration present in the project and the revised design; they do not claim successful production operation.
+
+## Infrastructure changes and cleanup
+
+Many resources use `prevent_destroy`, and the ALB enables deletion protection. Moving existing instances between subnets, removing hosts, or changing database volume keys can require destructive actions that these protections block. Review the Terraform plan and prepare any data migration before changing those protections.
+
+Provisioned resources incur ongoing charges. Keep `.env`, private keys, Terraform state, and saved plans out of Git, and protect application secrets supplied to Ansible. Public IPs provide reachability; security groups define the permitted inbound access.
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE).
