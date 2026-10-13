@@ -149,6 +149,70 @@ resource "aws_security_group" "galera_sg" {
 }
 
 
+# Redis and Sentinel Security Group
+resource "aws_security_group" "redis_sg" {
+  name        = "${var.PROJECT_NAME}-redis-sg"
+  description = "Redis replication and Sentinel communication"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description     = "Redis from application servers"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id]
+  }
+
+  ingress {
+    description = "Redis replication and Sentinel monitoring"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Sentinel communication between Redis hosts"
+    from_port   = 26379
+    to_port     = 26379
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description     = "Sentinel discovery from application servers"
+    from_port       = 26379
+    to_port         = 26379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id]
+  }
+
+  ingress {
+    description     = "Node Exporter from monitoring"
+    from_port       = 9100
+    to_port         = 9100
+    protocol        = "tcp"
+    security_groups = [aws_security_group.monitoring_sg.id]
+  }
+
+  egress {
+    description = "Allow outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = "${var.PROJECT_NAME}-redis-sg"
+  }
+}
+
+
 # Monitoring Security Group
 resource "aws_security_group" "monitoring_sg" {
   name        = "${var.PROJECT_NAME}-monitoring-sg"

@@ -10,7 +10,14 @@ locals {
     db-2 = 0
     db-3 = 0
   }
+
+  redis_instances = {
+    redis-1 = 0
+    redis-2 = 0
+    redis-3 = 0
+  }
 }
+
 
 resource "aws_key_pair" "ec2_key" {
   key_name   = "${var.PROJECT_NAME}-key"
@@ -59,6 +66,7 @@ resource "aws_instance" "app" {
   }
 }
 
+
 resource "aws_instance" "database" {
   for_each = local.database_instances
 
@@ -97,6 +105,46 @@ resource "aws_instance" "database" {
   }
 }
 
+
+resource "aws_instance" "redis" {
+  for_each = local.redis_instances
+
+  ami                         = var.AMI_ID != "" ? var.AMI_ID : data.aws_ami.ami.id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public_sn[each.value].id
+  associate_public_ip_address = true
+
+  key_name             = aws_key_pair.ec2_key.key_name
+  iam_instance_profile = aws_iam_instance_profile.redis_profile.name
+
+  vpc_security_group_ids = [
+    aws_security_group.redis_sg.id,
+    aws_security_group.ssh_sg.id
+  ]
+
+  root_block_device {
+    volume_size = 40
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = "${var.PROJECT_NAME}-${each.key}"
+    Role = "redis"
+  }
+}
+
+
 resource "aws_instance" "monitoring" {
   ami                         = var.AMI_ID != "" ? var.AMI_ID : data.aws_ami.ami.id
   instance_type               = var.instance_type
@@ -132,6 +180,7 @@ resource "aws_instance" "monitoring" {
     Role = "monitoring"
   }
 }
+
 
 resource "aws_volume_attachment" "database" {
   for_each = local.database_instances

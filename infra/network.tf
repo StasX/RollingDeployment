@@ -2,6 +2,7 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+
 resource "aws_vpc" "vpc" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
@@ -16,6 +17,7 @@ resource "aws_vpc" "vpc" {
   }
 }
 
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.vpc.id
 
@@ -27,6 +29,7 @@ resource "aws_internet_gateway" "igw" {
     Name = "${var.PROJECT_NAME}-igw"
   }
 }
+
 
 resource "aws_subnet" "public_sn" {
   count = 2
@@ -49,6 +52,7 @@ resource "aws_subnet" "public_sn" {
   }
 }
 
+
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.vpc.id
 
@@ -66,12 +70,14 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
+
 resource "aws_route_table_association" "public_rt_assoc" {
   count = 2
 
   subnet_id      = aws_subnet.public_sn[count.index].id
   route_table_id = aws_route_table.public_rt.id
 }
+
 
 resource "aws_subnet" "monitoring_sn" {
   vpc_id                  = aws_vpc.vpc.id
@@ -87,6 +93,7 @@ resource "aws_subnet" "monitoring_sn" {
     Name = "${var.PROJECT_NAME}-monitoring"
   }
 }
+
 
 resource "aws_route_table_association" "monitoring_rt_assoc" {
   subnet_id      = aws_subnet.monitoring_sn.id
