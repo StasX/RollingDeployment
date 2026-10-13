@@ -54,3 +54,10 @@ variable "ADMIN_ALLOWED_CIDR" {
     error_message = "ADMIN_ALLOWED_CIDR must be a valid IPv4 CIDR other than 0.0.0.0/0."
   }
 }
+
+variable "ACM_CERTIFICATE_ARN" {
+  description = "ARN of the ACM certificate used for HTTPS"
+  type        = string
+  default     = null
+  nullable    = true
+}

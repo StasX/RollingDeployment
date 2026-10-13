@@ -10,7 +10,7 @@ resource "aws_lb" "app_alb" {
   subnets = [
     for subnet in aws_subnet.public_sn : subnet.id
   ]
-
+  drop_invalid_header_fields = true
   enable_deletion_protection = true
 
   lifecycle {
@@ -62,6 +62,27 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.app_alb.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  count = var.ACM_CERTIFICATE_ARN != null ? 1 : 0
+
+  load_balancer_arn = aws_lb.app_alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+
+  certificate_arn = var.ACM_CERTIFICATE_ARN
+  ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 
   default_action {
     type             = "forward"
