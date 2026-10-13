@@ -1,15 +1,17 @@
 import os
 import boto3
-from botocore.exceptions import ClientError
-import subprocess
-from pathlib import Path
 import argparse
-from config.bucket import configure_bucket_security
+from utils.ansible import setup_hosts
+from utils.backend import prepare_backend
+from utils.terraform import run_terraform, get_hosts
+from pathlib import Path
+
 
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 REGION = os.getenv("REGION", "us-east-1")
 PROJECT_NAME = os.getenv("PROJECT_NAME")
+
 BASE_DIR = Path(__file__).resolve().parent
 INFRA_DIR = BASE_DIR / "infra"
 
@@ -20,7 +22,7 @@ def main():
         "--apply",
         dest="apply_changes",
         action="store_true",
-        help="Apply Terraform changes"
+        help="Apply Terraform changes and configure EC2 hosts",
     )
     args = parser.parse_args()
 
@@ -34,89 +36,23 @@ def main():
     )
     s3_client = session.client("s3")
 
-    try:
-        s3_client.head_bucket(Bucket=PROJECT_NAME)
-        print(f"Bucket '{PROJECT_NAME}' already exists.")
+    prepare_backend(s3_client, PROJECT_NAME=PROJECT_NAME, REGION=REGION)
 
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-
-        if error_code in ("404", "NotFound"):
-            print(f"Bucket '{PROJECT_NAME}' not found. Creating it...")
-
-            if REGION == "us-east-1":
-                s3_client.create_bucket(Bucket=PROJECT_NAME)
-            else:
-                s3_client.create_bucket(
-                    Bucket=PROJECT_NAME,
-                    CreateBucketConfiguration={
-                        "LocationConstraint": REGION
-                    },
-                )
-
-            configure_bucket_security(
-                s3_client=s3_client, bucket_name=PROJECT_NAME)
-
-            print(f"Successfully created '{PROJECT_NAME}' with versioning.")
-        else:
-            raise e
-
-    try:
-        response = s3_client.get_public_access_block(
-            Bucket=PROJECT_NAME
-        )
-
-        config = response["PublicAccessBlockConfiguration"]
-
-        if not all([
-            config["BlockPublicAcls"],
-            config["IgnorePublicAcls"],
-            config["BlockPublicPolicy"],
-            config["RestrictPublicBuckets"],
-        ]):
-            configure_bucket_security(
-                s3_client=s3_client, bucket_name=PROJECT_NAME)
-
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "NoSuchPublicAccessBlockConfiguration":
-            configure_bucket_security(
-                s3_client=s3_client, bucket_name=PROJECT_NAME)
-        else:
-            raise
-
-    # Check bucket versioning separately
-    response = s3_client.get_bucket_versioning(
-        Bucket=PROJECT_NAME
-    )
-
-    if response.get("Status") != "Enabled":
-        configure_bucket_security(
-            s3_client=s3_client, bucket_name=PROJECT_NAME)
-
-    subprocess.run([
-        "terraform",
-        f"-chdir={INFRA_DIR}",
+    run_terraform(
         "init",
         f"-backend-config=bucket={PROJECT_NAME}",
-        f"-backend-config=key=env/terraform.tfstate",
+        "-backend-config=key=env/terraform.tfstate",
         f"-backend-config=region={REGION}",
         "-backend-config=use_lockfile=true",
-    ], check=True)
+        INFRA_DIR=INFRA_DIR
+    )
 
-    subprocess.run([
-        "terraform",
-        f"-chdir={INFRA_DIR}",
-        "plan",
-        "-out=tfplan"
-    ], check=True)
+    run_terraform("plan", "-out=tfplan", INFRA_DIR=INFRA_DIR)
 
     if args.apply_changes:
-        subprocess.run([
-            "terraform",
-            f"-chdir={INFRA_DIR}",
-            "apply",
-            "tfplan"
-        ], check=True)
+        run_terraform("apply", "tfplan", INFRA_DIR=INFRA_DIR)
+        hosts = get_hosts(INFRA_DIR=INFRA_DIR)
+        setup_hosts(hosts, BASE_DIR=BASE_DIR, PROJECT_NAME=PROJECT_NAME)
 
 
 if __name__ == "__main__":

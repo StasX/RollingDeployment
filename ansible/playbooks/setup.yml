@@ -1,7 +1,17 @@
 - name: Prepare EC2 instances
   hosts: all
   become: true
-  gather_facts: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Wait for SSH and Python readiness
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        sleep: 5
+        timeout: 300
+
+    - name: Gather host facts
+      ansible.builtin.setup:
 
   roles:
     - docker
