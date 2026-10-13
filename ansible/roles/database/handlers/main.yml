@@ -1,0 +1,12 @@
+- name: Restart database
+  community.docker.docker_compose_v2:
+    project_src: "{{ database_base_dir }}"
+    project_name: "{{ database_compose_project }}"
+    files:
+      - docker-compose.yml
+    state: restarted
+    services:
+      - database
+    wait: true
+    wait_timeout: "{{ database_health_retries * database_health_delay }}"
+  when: database_restart_existing | bool

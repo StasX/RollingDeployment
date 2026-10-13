@@ -1,0 +1,183 @@
+- name: Validate database configuration
+  ansible.builtin.assert:
+    that:
+      - database_image | length > 0
+      - database_cluster_nodes | length == 3
+      - database_node_name | length > 0
+      - database_node_private_ip in database_cluster_nodes
+      - database_volume_device is defined
+      - database_data_uid is defined
+      - database_data_gid is defined
+      - database_wsrep_provider | length > 0
+      - database_cluster_nodes | unique | length == 3
+    fail_msg: "Supply the database image, provider path, three unique cluster IPs, node settings, EBS device, and container UID/GID."
+
+- name: Validate database secrets
+  ansible.builtin.assert:
+    that:
+      - database_root_password | default('') | length > 0
+      - database_password | default('') | length > 0
+      - database_sst_password | default('') | length > 0
+    fail_msg: "Database credentials are required."
+  no_log: true
+
+- name: Install filesystem tools
+  ansible.builtin.apt:
+    name:
+      - e2fsprogs
+      - util-linux
+    state: present
+    update_cache: true
+
+- name: Wait for database volume
+  ansible.builtin.wait_for:
+    path: "{{ database_volume_device }}"
+    timeout: 120
+
+- name: Inspect database volume
+  ansible.builtin.stat:
+    path: "{{ database_volume_device }}"
+    follow: true
+  register: database_device
+
+- name: Verify database device is a block device
+  ansible.builtin.assert:
+    that:
+      - database_device.stat.isblk | default(false)
+    fail_msg: "The supplied database volume path is not a block device."
+
+- name: Inspect existing disk signatures
+  ansible.builtin.command:
+    argv:
+      - wipefs
+      - --json
+      - "{{ database_volume_device }}"
+  register: database_disk_signatures
+  changed_when: false
+
+- name: Inspect filesystem type
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - -p
+      - -s
+      - TYPE
+      - -o
+      - value
+      - "{{ database_volume_device }}"
+  register: database_existing_filesystem
+  changed_when: false
+  failed_when: database_existing_filesystem.rc not in [0, 2]
+
+- name: Verify volume can be used safely
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          database_existing_filesystem.stdout | trim
+          == database_filesystem_type
+        )
+        or
+        (
+          database_existing_filesystem.rc == 2
+          and
+          (
+            (database_disk_signatures.stdout | from_json).signatures
+            | default([], true)
+            | length == 0
+          )
+          and
+          (database_allow_format | default(false) | bool)
+        )
+    fail_msg: >-
+      Expected an existing matching filesystem, or an explicitly approved
+      blank volume. Verify the EBS device before enabling database_allow_format.
+
+- name: Format approved blank database volume
+  community.general.filesystem:
+    dev: "{{ database_volume_device }}"
+    fstype: "{{ database_filesystem_type }}"
+    force: false
+  when: database_existing_filesystem.rc == 2
+
+- name: Read database filesystem UUID
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - -s
+      - UUID
+      - -o
+      - value
+      - "{{ database_volume_device }}"
+  register: database_filesystem_uuid
+  changed_when: false
+  failed_when: >-
+    database_filesystem_uuid.rc != 0
+    or database_filesystem_uuid.stdout | trim | length == 0
+
+- name: Mount database volume persistently
+  ansible.posix.mount:
+    path: "{{ database_mount_path }}"
+    src: "UUID={{ database_filesystem_uuid.stdout | trim }}"
+    fstype: "{{ database_filesystem_type }}"
+    opts: defaults
+    state: mounted
+
+- name: Create database configuration directory
+  ansible.builtin.file:
+    path: "{{ database_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create database data directory
+  ansible.builtin.file:
+    path: "{{ database_data_dir }}"
+    state: directory
+    owner: "{{ database_data_uid | string }}"
+    group: "{{ database_data_gid | string }}"
+    mode: "0750"
+
+- name: Configure MariaDB and Galera
+  ansible.builtin.template:
+    src: galera.cnf.j2
+    dest: "{{ database_base_dir }}/galera.cnf"
+    owner: root
+    group: "{{ database_data_gid | string }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart database
+
+- name: Configure database environment
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ database_base_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Configure database Docker Compose
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ database_base_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Start database containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ database_base_dir }}"
+    project_name: "{{ database_compose_project }}"
+    files:
+      - docker-compose.yml
+    services:
+      - database
+    state: present
+    pull: missing
+    wait: true
+    wait_timeout: "{{ database_health_retries * database_health_delay }}"
+
+- name: Apply pending database restart
+  ansible.builtin.meta: flush_handlers

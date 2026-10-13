@@ -1,0 +1,22 @@
+services:
+  database:
+    image: {{ database_image | to_json }}
+    restart: unless-stopped
+    network_mode: host
+
+    env_file:
+      - path: .env
+        format: raw
+
+    volumes:
+      - {{ (database_data_dir ~ ':/var/lib/mysql') | to_json }}
+      - {{ (database_base_dir ~ '/galera.cnf:/etc/mysql/conf.d/galera.cnf:ro') | to_json }}
+
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/galera-healthcheck
+      interval: 10s
+      timeout: 5s
+      retries: {{ database_health_retries }}
+      start_period: 60s

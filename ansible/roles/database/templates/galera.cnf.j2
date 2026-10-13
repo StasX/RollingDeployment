@@ -1,0 +1,18 @@
+[mariadb]
+bind-address=0.0.0.0
+port={{ database_port }}
+
+default_storage_engine=InnoDB
+binlog_format=ROW
+innodb_autoinc_lock_mode=2
+
+wsrep_on=ON
+wsrep_provider={{ database_wsrep_provider }}
+wsrep_cluster_name={{ database_cluster_name }}
+wsrep_cluster_address=gcomm://{{ database_cluster_nodes | join(',') }}
+
+wsrep_node_name={{ database_node_name }}
+wsrep_node_address={{ database_node_private_ip }}
+
+wsrep_sst_method=mariabackup
+wsrep_sst_auth={{ database_sst_user }}:{{ database_sst_password }}

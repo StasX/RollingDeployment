@@ -1,0 +1,38 @@
+# Container image: pass an exact tested tag through Python.
+database_image: ""
+
+# Host configuration
+database_base_dir: "/opt/database"
+database_data_dir: "/mnt/database/mysql"
+database_compose_project: "{{ project_name | lower }}-database"
+
+# Dedicated EBS volume mount
+database_mount_path: "/mnt/database"
+database_filesystem_type: "ext4"
+
+# MariaDB
+database_port: 3306
+database_name: "{{ project_name | lower }}"
+database_user: "app"
+
+# Galera
+database_cluster_name: "{{ project_name | lower }}-galera"
+database_cluster_nodes: []
+database_node_name: ""
+database_node_private_ip: ""
+
+# Health checks
+database_health_retries: 30
+database_health_delay: 10
+
+# Formatting requires explicit approval of the identified blank EBS volume.
+database_allow_format: false
+
+# Enable only for rolling maintenance of an existing cluster.
+database_restart_existing: false
+
+database_sst_user: "sst"
+database_bootstrap: false
+
+# Set this to the provider library path inside your image.
+database_wsrep_provider: ""
