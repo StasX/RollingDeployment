@@ -28,8 +28,11 @@ resource "aws_key_pair" "ec2_key" {
   }
 }
 
+#checkov:skip=CKV_AWS_126:Using basic EC2 monitoring and Prometheus
 resource "aws_instance" "app" {
-  for_each = local.app_instances
+  monitoring    = false
+  ebs_optimized = true
+  for_each      = local.app_instances
 
   ami                         = var.AMI_ID != "" ? var.AMI_ID : data.aws_ami.ami.id
   instance_type               = var.instance_type

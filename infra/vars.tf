@@ -55,6 +55,7 @@ variable "ADMIN_ALLOWED_CIDR" {
   }
 }
 
+# Certificate
 variable "ACM_CERTIFICATE_ARN" {
   description = "ARN of the ACM certificate used for HTTPS"
   type        = string
