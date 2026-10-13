@@ -1,0 +1,18 @@
+bind 127.0.0.1 {{ redis_node_private_ip }}
+port {{ redis_sentinel_port }}
+protected-mode yes
+daemonize no
+logfile ""
+
+dir /data
+
+requirepass {{ redis_sentinel_password | to_json }}
+
+sentinel announce-ip {{ redis_node_private_ip }}
+sentinel announce-port {{ redis_sentinel_port }}
+
+sentinel monitor {{ redis_sentinel_master_name }} {{ redis_initial_primary_private_ip }} {{ redis_port }} {{ redis_sentinel_quorum }}
+sentinel auth-pass {{ redis_sentinel_master_name }} {{ redis_password | to_json }}
+sentinel down-after-milliseconds {{ redis_sentinel_master_name }} {{ redis_sentinel_down_after_milliseconds }}
+sentinel failover-timeout {{ redis_sentinel_master_name }} {{ redis_sentinel_failover_timeout }}
+sentinel parallel-syncs {{ redis_sentinel_master_name }} {{ redis_sentinel_parallel_syncs }}

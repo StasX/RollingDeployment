@@ -1,0 +1,37 @@
+# Images: Python supplies exact tested tags.
+redis_image: ""
+redis_sentinel_image: ""
+
+# Host directories
+redis_base_dir: "/opt/redis"
+redis_data_dir: "/opt/redis/data"
+redis_sentinel_data_dir: "/opt/redis/sentinel"
+redis_compose_project: "{{ project_name | lower }}-redis"
+
+# Per-host settings supplied by Python
+redis_node_name: ""
+redis_node_private_ip: ""
+redis_node_private_ips: []
+
+# Redis
+redis_port: 6379
+redis_appendonly: true
+redis_appendfsync: "everysec"
+
+# Preserve sessions and queued jobs rather than evicting keys.
+redis_maxmemory_policy: "noeviction"
+
+# Sentinel
+redis_sentinel_port: 26379
+redis_sentinel_master_name: "{{ project_name | lower }}-redis"
+redis_sentinel_quorum: 2
+redis_sentinel_down_after_milliseconds: 10000
+redis_sentinel_failover_timeout: 180000
+redis_sentinel_parallel_syncs: 1
+
+# Used only during initial provisioning
+redis_initial_primary_private_ip: ""
+
+# Health checks
+redis_health_retries: 30
+redis_health_delay: 5

@@ -1,0 +1,106 @@
+- name: Validate Redis configuration
+  ansible.builtin.assert:
+    that:
+      - redis_image | length > 0
+      - redis_sentinel_image | length > 0
+      - redis_node_name | length > 0
+      - redis_node_private_ips | length == 3
+      - redis_node_private_ips | unique | length == 3
+      - redis_node_private_ip in redis_node_private_ips
+      - redis_data_uid is defined
+      - redis_data_gid is defined
+      - redis_sentinel_uid is defined
+      - redis_sentinel_gid is defined
+    fail_msg: "Supply images, three unique Redis private IPs, node settings, and container UID/GID."
+
+- name: Validate Redis credentials
+  ansible.builtin.assert:
+    that:
+      - redis_password | default('') | length > 0
+      - redis_sentinel_password | default('') | length > 0
+    fail_msg: "Redis and Sentinel passwords are required."
+  no_log: true
+
+- name: Create Redis project directory
+  ansible.builtin.file:
+    path: "{{ redis_base_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: "{{ redis_data_dir }}"
+    state: directory
+    owner: "{{ redis_data_uid | string }}"
+    group: "{{ redis_data_gid | string }}"
+    mode: "0700"
+
+- name: Create Sentinel persistent directory
+  ansible.builtin.file:
+    path: "{{ redis_sentinel_data_dir }}"
+    state: directory
+    owner: "{{ redis_sentinel_uid | string }}"
+    group: "{{ redis_sentinel_gid | string }}"
+    mode: "0700"
+
+- name: Inspect Redis configuration
+  ansible.builtin.stat:
+    path: "{{ redis_data_dir }}/redis.conf"
+  register: redis_config_file
+
+- name: Inspect Sentinel configuration
+  ansible.builtin.stat:
+    path: "{{ redis_sentinel_data_dir }}/sentinel.conf"
+  register: redis_sentinel_config_file
+
+- name: Validate initial primary for first provisioning
+  ansible.builtin.assert:
+    that:
+      - redis_initial_primary_private_ip in redis_node_private_ips
+    fail_msg: "Supply the initial primary private IP for first provisioning."
+  when:
+    - not redis_config_file.stat.exists or not redis_sentinel_config_file.stat.exists
+
+- name: Create initial Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ redis_data_dir }}/redis.conf"
+    owner: "{{ redis_data_uid | string }}"
+    group: "{{ redis_data_gid | string }}"
+    mode: "0600"
+    force: false
+  no_log: true
+
+- name: Create initial Sentinel configuration
+  ansible.builtin.template:
+    src: sentinel.conf.j2
+    dest: "{{ redis_sentinel_data_dir }}/sentinel.conf"
+    owner: "{{ redis_sentinel_uid | string }}"
+    group: "{{ redis_sentinel_gid | string }}"
+    mode: "0600"
+    force: false
+  no_log: true
+
+- name: Configure Redis Docker Compose
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ redis_base_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Start Redis and Sentinel containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ redis_base_dir }}"
+    project_name: "{{ redis_compose_project }}"
+    files:
+      - docker-compose.yml
+    services:
+      - redis
+      - sentinel
+    state: present
+    pull: missing
+    wait: true
+    wait_timeout: "{{ redis_health_retries * redis_health_delay }}"

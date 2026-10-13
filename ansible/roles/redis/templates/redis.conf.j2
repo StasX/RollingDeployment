@@ -1,0 +1,24 @@
+bind 127.0.0.1 {{ redis_node_private_ip }}
+port {{ redis_port }}
+protected-mode yes
+daemonize no
+logfile ""
+
+dir /data
+dbfilename dump.rdb
+
+appendonly {{ redis_appendonly | ternary('yes', 'no') }}
+appendfsync {{ redis_appendfsync }}
+
+requirepass {{ redis_password | to_json }}
+masterauth {{ redis_password | to_json }}
+
+replica-read-only yes
+replica-announce-ip {{ redis_node_private_ip }}
+replica-announce-port {{ redis_port }}
+
+maxmemory-policy {{ redis_maxmemory_policy }}
+
+{% if redis_node_private_ip != redis_initial_primary_private_ip %}
+replicaof {{ redis_initial_primary_private_ip }} {{ redis_port }}
+{% endif %}

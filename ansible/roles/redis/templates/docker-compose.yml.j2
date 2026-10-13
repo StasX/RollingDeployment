@@ -1,0 +1,51 @@
+services:
+  redis:
+    image: {{ redis_image | to_json }}
+    user: "{{ redis_data_uid }}:{{ redis_data_gid }}"
+    restart: unless-stopped
+    network_mode: host
+
+    command:
+      - redis-server
+      - /data/redis.conf
+
+    environment:
+      REDISCLI_AUTH: {{ redis_password | replace('$', '$$') | to_json }}
+
+    volumes:
+      - {{ (redis_data_dir ~ ':/data') | to_json }}
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'test "$$(redis-cli -h 127.0.0.1 -p {{ redis_port }} ping)" = PONG'
+      interval: 10s
+      timeout: 5s
+      retries: {{ redis_health_retries }}
+      start_period: 30s
+
+  sentinel:
+    image: {{ redis_sentinel_image | to_json }}
+    user: "{{ redis_sentinel_uid }}:{{ redis_sentinel_gid }}"
+    restart: unless-stopped
+    network_mode: host
+
+    command:
+      - redis-server
+      - /data/sentinel.conf
+      - --sentinel
+
+    environment:
+      REDISCLI_AUTH: {{ redis_sentinel_password | replace('$', '$$') | to_json }}
+
+    volumes:
+      - {{ (redis_sentinel_data_dir ~ ':/data') | to_json }}
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'test "$$(redis-cli -h 127.0.0.1 -p {{ redis_sentinel_port }} ping)" = PONG'
+      interval: 10s
+      timeout: 5s
+      retries: {{ redis_health_retries }}
+      start_period: 30s

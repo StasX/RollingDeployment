@@ -1,0 +1,23 @@
+- name: Restart Redis
+  community.docker.docker_compose_v2:
+    project_src: "{{ redis_base_dir }}"
+    project_name: "{{ redis_compose_project }}"
+    files:
+      - docker-compose.yml
+    services:
+      - redis
+    state: restarted
+    wait: true
+    wait_timeout: "{{ redis_health_retries * redis_health_delay }}"
+
+- name: Restart Sentinel
+  community.docker.docker_compose_v2:
+    project_src: "{{ redis_base_dir }}"
+    project_name: "{{ redis_compose_project }}"
+    files:
+      - docker-compose.yml
+    services:
+      - sentinel
+    state: restarted
+    wait: true
+    wait_timeout: "{{ redis_health_retries * redis_health_delay }}"
