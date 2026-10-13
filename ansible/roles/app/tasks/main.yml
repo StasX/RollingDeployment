@@ -44,7 +44,7 @@
 - name: Apply pending application handlers
   ansible.builtin.meta: flush_handlers
 
-- name: Verify application health
+- name: Verify application health # checkov:skip=CKV2_ANSIBLE_1:Local HTTP health check
   ansible.builtin.uri:
     url: "{{ app_health_url }}"
     method: GET
