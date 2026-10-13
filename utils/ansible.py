@@ -18,6 +18,7 @@ def setup_hosts(hosts, BASE_DIR, PROJECT_NAME):
     public_ips = [
         *hosts["application"]["public_ips"].values(),
         *hosts["database"]["public_ips"].values(),
+        *hosts["redis"]["public_ips"].values(),
         hosts["monitoring"]["public_ip"],
     ]
     inventory = ",".join(public_ips) + ","

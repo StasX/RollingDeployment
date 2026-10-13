@@ -35,13 +35,17 @@ def get_hosts(INFRA_DIR):
             "public_ips": output_value("database_public_ips"),
             "private_ips": output_value("database_private_ips"),
         },
+        "redis": {
+            "public_ips": output_value("redis_public_ips"),
+            "private_ips": output_value("redis_private_ips"),
+        },
         "monitoring": {
             "public_ip": output_value("monitoring_public_ip"),
             "private_ip": output_value("monitoring_private_ip"),
         },
     }
 
-    for group in ("application", "database"):
+    for group in ("application", "database", "redis"):
         public_ips = hosts[group]["public_ips"]
         private_ips = hosts[group]["private_ips"]
 
